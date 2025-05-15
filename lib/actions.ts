@@ -55,32 +55,35 @@ export async function checkBookingLimit(productId: string, userId: string) {
   }
 }
 
-// Update the bookProduct function to check booking limits
-export async function bookProduct(productId: string) {
+// Update the bookProduct function to allow guest bookings
+export async function bookProduct(productId: string, userId?: string | null, allowGuestBooking = false) {
   try {
     const supabase = createServerSupabaseClient()
 
-    // Get current user
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
-      throw new Error("You must be logged in to book a product")
+    // If no userId is provided and guest bookings are not allowed, check for a session
+    if (!userId && !allowGuestBooking) {
+      // Get current user
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        throw new Error("You must be logged in to book a product")
+      }
+
+      userId = session.user.id
     }
 
-    const userId = session.user.id
-
-    // Check booking limit
-    const bookingLimitCheck = await checkBookingLimit(productId, userId)
-    if (!bookingLimitCheck.canBook) {
-      throw new Error(bookingLimitCheck.message)
+    // If userId is provided, check booking limit
+    if (userId) {
+      const bookingLimitCheck = await checkBookingLimit(productId, userId)
+      if (!bookingLimitCheck.canBook) {
+        throw new Error(bookingLimitCheck.message)
+      }
     }
 
     // Get system settings
     const settings = await getSystemSettings()
-
-    // If no userId is provided, we'll still allow the booking
-    // This is for the bypass functionality
 
     // Check if user already has a pending booking (if duplicate bookings are not allowed)
     if (userId && !settings.allow_duplicate_bookings) {
@@ -132,7 +135,7 @@ export async function bookProduct(productId: string) {
       .from("bookings")
       .insert({
         product_id: productId,
-        user_id: userId || null, // Allow null user_id for bypass
+        user_id: userId || null, // Allow null user_id for guest bookings
         expires_at: expiresAt.toISOString(),
         status: "pending",
         approval_status: settings.default_approval_required ? "pending" : "approved", // Auto-approve if not required

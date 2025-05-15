@@ -124,7 +124,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
     try {
       await updateProduct({
-        id: product.id,
+        id: params.id,
         name: formData.name,
         description: formData.description,
         price: formData.price,

@@ -387,19 +387,17 @@ export async function getProductById(productId: string) {
 }
 
 // Update product
-export async function updateProduct(
-  productId: string,
-  productData: {
-    name: string
-    description: string
-    price: number
-    stock: number
-    image: string
-    discountedPrice?: number
-    category?: string
-    maxBookingPerUser?: number
-  },
-) {
+export async function updateProduct(productData: {
+  id: string
+  name: string
+  description: string
+  price: number
+  stock: number
+  image: string
+  discountedPrice?: number | null
+  category?: string
+  maxBookingPerUser?: number
+}) {
   try {
     const supabase = createServerSupabaseClient()
 
@@ -426,14 +424,14 @@ export async function updateProduct(
         max_booking_per_user: productData.maxBookingPerUser || 1,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", productId)
+      .eq("id", productData.id)
 
     if (error) {
       throw new Error(`Error updating product: ${error.message}`)
     }
 
-    revalidatePath(`/admin/products/${productId}`)
-    revalidatePath(`/admin/products/edit/${productId}`)
+    revalidatePath(`/admin/products/${productData.id}`)
+    revalidatePath(`/admin/products/edit/${productData.id}`)
     revalidatePath("/admin/products")
     revalidatePath("/products")
 

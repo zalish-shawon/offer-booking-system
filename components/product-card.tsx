@@ -42,6 +42,7 @@ export function ProductCard({ product }: ProductCardProps) {
       } = await supabase.auth.getSession()
 
       let userId = session?.user?.id
+      let allowGuestBooking = false
 
       // If not logged in, try auto-login
       if (!session) {
@@ -57,21 +58,22 @@ export function ProductCard({ product }: ProductCardProps) {
               title: "Auto-login successful",
               description: "You've been automatically logged in as admin",
             })
+          } else {
+            // If auto-login fails, allow guest booking
+            allowGuestBooking = true
+            toast({
+              title: "Guest booking",
+              description: "Creating a booking as a guest user",
+            })
           }
         } catch (loginError) {
           console.error("Auto-login failed:", loginError)
+          // Allow guest booking if auto-login fails
+          allowGuestBooking = true
         }
       }
 
-      // If still no user ID, create a temporary booking without user
-      if (!userId) {
-        toast({
-          title: "Guest booking",
-          description: "Creating a booking as a guest user",
-        })
-      }
-
-      await bookProduct(product.id, userId)
+      await bookProduct(product.id, userId, allowGuestBooking)
 
       // Redirect to booking confirmation page
       router.push(`/booking-confirmation/${product.id}`)
