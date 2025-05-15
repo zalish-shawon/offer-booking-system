@@ -57,9 +57,11 @@ export default async function Home() {
             ))}
           </div>
           <div className="flex justify-center mt-10">
+          <Link href="/products">
             <Button asChild variant="outline">
-              <Link href="/products">View All Products</Link>
+              View All Products
             </Button>
+            </Link>
           </div>
         </div>
       </section>
