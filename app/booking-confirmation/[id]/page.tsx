@@ -170,7 +170,7 @@ export default function BookingConfirmationPage({ params }: { params: { id: stri
   }
 
   return (
-    <div className="container max-w-4xl py-10">
+    <div className="container max-w-4xl mx-auto py-10">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Complete Your Purchase</h1>
         <p className="text-muted-foreground">
