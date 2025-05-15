@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Clock, ShoppingCart } from "lucide-react"
+import { Clock, ShoppingCart, ImageOff } from "lucide-react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 import { Button } from "@/components/ui/button"
@@ -29,8 +29,15 @@ export function ProductCard({ product }: ProductCardProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [isBooking, setIsBooking] = useState(false)
+  const [imageError, setImageError] = useState(false)
   const hasDiscount = product.discountedPrice && product.discountedPrice < product.price
   const supabase = createClientComponentClient()
+
+  // Use a default placeholder if the image URL is invalid or missing
+  const placeholderImage = "/placeholder.svg?height=300&width=300"
+
+  // Validate image URL
+  const imageUrl = product.image && product.image.trim() !== "" ? product.image : placeholderImage
 
   const handleBooking = async () => {
     setIsBooking(true)
@@ -91,13 +98,23 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="relative aspect-square">
-        <Image
-          src={product.image || "/placeholder.svg?height=300&width=300"}
-          alt={product.name}
-          fill
-          className="object-cover"
-        />
+      <div className="relative aspect-square bg-gray-100">
+        {imageError ? (
+          <div className="flex items-center justify-center h-full w-full bg-gray-100">
+            <ImageOff className="h-12 w-12 text-gray-400" />
+          </div>
+        ) : (
+          <Image
+            src={imageUrl || "/placeholder.svg"}
+            alt={product.name}
+            fill
+            className="object-cover"
+            onError={() => setImageError(true)}
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            priority={false}
+            loading="lazy"
+          />
+        )}
         {hasDiscount && (
           <Badge className="absolute top-2 right-2 bg-red-500">
             {Math.round(((product.price - product.discountedPrice!) / product.price) * 100)}% OFF
@@ -120,7 +137,6 @@ export function ProductCard({ product }: ProductCardProps) {
               <span className="text-xl font-bold">${product.price.toFixed(2)}</span>
             )}
           </div>
-          {/* Removed stock display */}
         </div>
       </CardContent>
       <CardFooter className="p-4 pt-0">
