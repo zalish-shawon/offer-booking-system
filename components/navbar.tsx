@@ -63,7 +63,7 @@ export function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background">
+    <header className="sticky flex justify-center top-0 z-40 w-full border-b bg-background">
       <div className="container flex h-16 items-center">
         <Link href="/" className="flex items-center gap-2 font-bold">
           <Package className="h-6 w-6" />

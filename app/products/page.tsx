@@ -13,7 +13,7 @@ export default async function ProductsPage({
   const products = await getAllProducts(search)
 
   return (
-    <div className="container flex flex-col justify-center px-4 py-8 md:px-6 md:py-12">
+    <div className="container px-4 py-8 md:px-6 md:py-12">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Products</h1>
