@@ -13,7 +13,7 @@ export default async function ProductsPage({
   const products = await getAllProducts(search)
 
   return (
-    <div className="container px-4 py-8 md:px-6 md:py-12">
+    <div className="container flex justify-center px-4 py-8 md:px-6 md:py-12">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Products</h1>
@@ -22,8 +22,6 @@ export default async function ProductsPage({
         <ProductsClient initialSearch={search} />
       </div>
 
-      <div className= "flex justify-center">
-      
       <Suspense fallback={<ProductsFilterSkeleton />}>
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {products.length > 0 ? (
@@ -36,7 +34,6 @@ export default async function ProductsPage({
           )}
         </div>
       </Suspense>
-      </div>
     </div>
   )
 }
