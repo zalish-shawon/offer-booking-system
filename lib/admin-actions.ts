@@ -356,6 +356,12 @@ export async function deleteProduct(productId: string) {
 // Get product by ID
 export async function getProductById(productId: string) {
   try {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(productId)) {
+      throw new Error(`Invalid product ID format: ${productId}`)
+    }
+
     const supabase = createServerSupabaseClient()
 
     const { data, error } = await supabase.from("products").select("*").eq("id", productId).single()
@@ -405,7 +411,7 @@ export async function updateProduct(
       status = "low-stock"
     }
 
-    // Update the product
+    // Update the product with category
     const { error } = await supabase
       .from("products")
       .update({

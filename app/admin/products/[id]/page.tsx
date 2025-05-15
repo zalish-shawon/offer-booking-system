@@ -13,6 +13,12 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { getProductById } from "@/lib/admin-actions"
 
+// Helper function to validate UUID format
+function isValidUUID(id: string) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(id)
+}
+
 export default function ProductDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -22,6 +28,12 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
+        // Check if the ID is a valid UUID format before fetching
+        if (!isValidUUID(params.id)) {
+          router.push("/admin/products")
+          return
+        }
+
         const data = await getProductById(params.id)
         setProduct(data)
       } catch (error: any) {

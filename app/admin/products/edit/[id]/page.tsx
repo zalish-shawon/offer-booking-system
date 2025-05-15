@@ -4,8 +4,9 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, Upload } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
+import { ArrowLeft, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,36 +17,50 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { getProductById, updateProduct } from "@/lib/admin-actions"
 
+// Helper function to validate UUID format
+function isValidUUID(id: string) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(id)
+}
+
 export default function EditProductPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasDiscount, setHasDiscount] = useState(false)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [product, setProduct] = useState<any>(null)
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     price: 0,
     discountedPrice: 0,
+    hasDiscount: false,
     stock: 0,
-    category: "mobile",
+    category: "",
+    image: "",
   })
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const product = await getProductById(params.id)
+        // Check if the ID is a valid UUID format before fetching
+        if (!isValidUUID(params.id)) {
+          router.push("/admin/products")
+          return
+        }
+
+        const data = await getProductById(params.id)
+        setProduct(data)
         setFormData({
-          name: product.name,
-          description: product.description,
-          price: product.price,
-          discountedPrice: product.discountedPrice || 0,
-          stock: product.stock,
-          category: product.category || "mobile",
+          name: data.name,
+          description: data.description,
+          price: data.price,
+          discountedPrice: data.discountedPrice || 0,
+          hasDiscount: !!data.discountedPrice,
+          stock: data.stock,
+          category: data.category || "Mobile",
+          image: data.image || "",
         })
-        setHasDiscount(!!product.discountedPrice)
-        setImagePreview(product.image)
       } catch (error: any) {
         toast({
           title: "Error",
@@ -61,55 +76,73 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     fetchProduct()
   }, [params.id, router, toast])
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "price" || name === "discountedPrice" || name === "stock" ? Number.parseFloat(value) : value,
+    }))
+  }
+
+  const handleDiscountToggle = (checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      hasDiscount: checked,
+      discountedPrice: checked ? prev.discountedPrice : 0,
+    }))
+  }
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       const reader = new FileReader()
       reader.onloadend = () => {
-        setImagePreview(reader.result as string)
+        setFormData((prev) => ({
+          ...prev,
+          image: reader.result as string,
+        }))
       }
       reader.readAsDataURL(file)
     }
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
+  const removeImage = () => {
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "price" || name === "discountedPrice" || name === "stock" ? Number(value) : value,
+      image: "",
     }))
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
+    setIsSaving(true)
 
     try {
-      await updateProduct(params.id, {
+      await updateProduct({
+        id: product.id,
         name: formData.name,
         description: formData.description,
         price: formData.price,
+        discountedPrice: formData.hasDiscount ? formData.discountedPrice : null,
         stock: formData.stock,
-        image: imagePreview || "/placeholder.svg?height=300&width=300",
-        discountedPrice: hasDiscount ? formData.discountedPrice : undefined,
         category: formData.category,
+        image: formData.image,
       })
 
       toast({
-        title: "Product updated",
-        description: "The product has been updated successfully.",
+        title: "Success",
+        description: "Product updated successfully",
       })
 
       router.push("/admin/products")
-      router.refresh()
     } catch (error: any) {
       toast({
-        title: "Error updating product",
-        description: error.message || "An error occurred while updating the product.",
+        title: "Error",
+        description: error.message || "Failed to update product",
         variant: "destructive",
       })
     } finally {
-      setIsSubmitting(false)
+      setIsSaving(false)
     }
   }
 
@@ -117,6 +150,24 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!product) {
+    return (
+      <div className="container py-10">
+        <Card>
+          <CardHeader>
+            <CardTitle>Product Not Found</CardTitle>
+            <CardDescription>The requested product could not be found.</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button asChild>
+              <Link href="/admin/products">Back to Products</Link>
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     )
   }
@@ -133,45 +184,31 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card className="md:col-span-2">
+        <div className="grid gap-6">
+          <Card>
             <CardHeader>
-              <CardTitle>Product Information</CardTitle>
-              <CardDescription>Edit the basic details about your product</CardDescription>
+              <CardTitle>Basic Information</CardTitle>
+              <CardDescription>Update the product's basic details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3">
+              <div className="space-y-2">
                 <Label htmlFor="name">Product Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder="Enter product name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                />
+                <Input id="name" name="name" value={formData.name} onChange={handleInputChange} required />
               </div>
-              <div className="grid gap-3">
+              <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
                   name="description"
-                  placeholder="Enter product description"
-                  className="min-h-[120px]"
                   value={formData.description}
-                  onChange={handleChange}
+                  onChange={handleInputChange}
+                  rows={5}
                   required
                 />
               </div>
-              <div className="grid gap-3">
+              <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
-                <Input
-                  id="category"
-                  name="category"
-                  placeholder="Enter product category"
-                  value={formData.category}
-                  onChange={handleChange}
-                />
+                <Input id="category" name="category" value={formData.category} onChange={handleInputChange} required />
               </div>
             </CardContent>
           </Card>
@@ -179,56 +216,51 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
           <Card>
             <CardHeader>
               <CardTitle>Pricing & Inventory</CardTitle>
-              <CardDescription>Set your product price and stock level</CardDescription>
+              <CardDescription>Update the product's pricing and stock information.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3">
+              <div className="space-y-2">
                 <Label htmlFor="price">Regular Price ($)</Label>
                 <Input
                   id="price"
                   name="price"
                   type="number"
-                  step="0.01"
                   min="0"
-                  placeholder="0.00"
+                  step="0.01"
                   value={formData.price}
-                  onChange={handleChange}
+                  onChange={handleInputChange}
                   required
                 />
               </div>
-
               <div className="flex items-center space-x-2">
-                <Switch id="discount-switch" checked={hasDiscount} onCheckedChange={setHasDiscount} />
-                <Label htmlFor="discount-switch">Add Discount</Label>
+                <Switch id="hasDiscount" checked={formData.hasDiscount} onCheckedChange={handleDiscountToggle} />
+                <Label htmlFor="hasDiscount">Apply Discount</Label>
               </div>
-
-              {hasDiscount && (
-                <div className="grid gap-3">
+              {formData.hasDiscount && (
+                <div className="space-y-2">
                   <Label htmlFor="discountedPrice">Discounted Price ($)</Label>
                   <Input
                     id="discountedPrice"
                     name="discountedPrice"
                     type="number"
-                    step="0.01"
                     min="0"
-                    placeholder="0.00"
+                    step="0.01"
                     value={formData.discountedPrice}
-                    onChange={handleChange}
-                    required={hasDiscount}
+                    onChange={handleInputChange}
+                    required={formData.hasDiscount}
                   />
                 </div>
               )}
-
-              <div className="grid gap-3">
+              <div className="space-y-2">
                 <Label htmlFor="stock">Stock Quantity</Label>
                 <Input
                   id="stock"
                   name="stock"
                   type="number"
                   min="0"
-                  placeholder="0"
+                  step="1"
                   value={formData.stock}
-                  onChange={handleChange}
+                  onChange={handleInputChange}
                   required
                 />
               </div>
@@ -238,57 +270,58 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
           <Card>
             <CardHeader>
               <CardTitle>Product Image</CardTitle>
-              <CardDescription>Upload an image of your product</CardDescription>
+              <CardDescription>Update the product's image.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3">
-                <Label htmlFor="image">Product Image</Label>
-                <div className="flex flex-col items-center justify-center gap-4">
-                  <div
-                    className="relative flex h-40 w-40 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-muted-foreground/25 p-4 text-center transition-colors hover:border-muted-foreground/50"
-                    onClick={() => document.getElementById("image")?.click()}
-                  >
-                    {imagePreview ? (
-                      <img
-                        src={imagePreview || "/placeholder.svg"}
-                        alt="Product preview"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <>
-                        <Upload className="h-10 w-10 text-muted-foreground" />
-                        <p className="mt-2 text-sm text-muted-foreground">Click to upload or drag and drop</p>
-                      </>
-                    )}
-                    <Input
-                      id="image"
-                      name="image"
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={handleImageChange}
+              <div className="flex flex-col items-center space-y-4">
+                <div
+                  className="relative aspect-square w-full max-w-[300px] overflow-hidden rounded-md border border-dashed border-gray-300 cursor-pointer"
+                  onClick={() => document.getElementById("image-upload")?.click()}
+                >
+                  {formData.image ? (
+                    <Image
+                      src={formData.image || "/placeholder.svg"}
+                      alt="Product preview"
+                      fill
+                      className="object-cover"
                     />
-                  </div>
-                  {imagePreview && (
-                    <Button type="button" variant="outline" size="sm" onClick={() => setImagePreview(null)}>
-                      Remove Image
-                    </Button>
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <p className="text-center text-sm text-gray-500">Click to upload an image</p>
+                    </div>
                   )}
+                  <input
+                    id="image-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
                 </div>
+                {formData.image && (
+                  <Button type="button" variant="outline" onClick={removeImage}>
+                    Remove Image
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="md:col-span-2">
-            <CardFooter className="flex justify-between border-t px-6 py-4">
-              <Button variant="outline" type="button" onClick={() => router.back()}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
-              </Button>
-            </CardFooter>
-          </Card>
+          <div className="flex justify-end space-x-4">
+            <Button type="button" variant="outline" asChild>
+              <Link href="/admin/products">Cancel</Link>
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
