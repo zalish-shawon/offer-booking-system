@@ -22,6 +22,8 @@ export default async function ProductsPage({
         <ProductsClient initialSearch={search} />
       </div>
 
+      <div className= "flex justify-center">
+      
       <Suspense fallback={<ProductsFilterSkeleton />}>
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {products.length > 0 ? (
@@ -34,6 +36,7 @@ export default async function ProductsPage({
           )}
         </div>
       </Suspense>
+      </div>
     </div>
   )
 }
