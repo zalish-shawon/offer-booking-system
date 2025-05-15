@@ -1,13 +1,8 @@
-"use client"
-
 import { Suspense } from "react"
-import { SlidersHorizontal } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ProductCard } from "@/components/product-card"
+import { ProductsClient } from "@/components/products-client"
 import { getAllProducts } from "@/lib/products"
 import { ProductsFilterSkeleton } from "@/components/skeletons"
+import { ProductCard } from "@/components/product-card"
 
 export default async function ProductsPage({
   searchParams,
@@ -24,28 +19,7 @@ export default async function ProductsPage({
           <h1 className="text-3xl font-bold tracking-tight">Products</h1>
           <p className="text-muted-foreground">Browse our collection of mobile phones</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative w-full md:w-[300px]">
-            <Input
-              placeholder="Search products..."
-              className="w-full"
-              defaultValue={search}
-              onChange={(e) => {
-                const params = new URLSearchParams(window.location.search)
-                if (e.target.value) {
-                  params.set("search", e.target.value)
-                } else {
-                  params.delete("search")
-                }
-                window.history.replaceState(null, "", `?${params.toString()}`)
-              }}
-            />
-          </div>
-          <Button variant="outline" size="icon">
-            <SlidersHorizontal className="h-4 w-4" />
-            <span className="sr-only">Filter</span>
-          </Button>
-        </div>
+        <ProductsClient initialSearch={search} />
       </div>
 
       <Suspense fallback={<ProductsFilterSkeleton />}>
