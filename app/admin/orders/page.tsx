@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/auth"
 import { AdminOrdersTable } from "@/components/admin/orders-table"
 import { getAdminOrders } from "@/lib/admin"
 
+// Force dynamic rendering for this page
+export const dynamic = "force-dynamic"
+
 export default async function AdminOrdersPage() {
   try {
     // Ensure user is admin

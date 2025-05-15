@@ -83,11 +83,11 @@ export async function getInvoiceByOrderId(orderId: string) {
       .from("invoices")
       .select(`
         *,
-        orders(
+        orders!inner(
           *,
-          bookings(
+          bookings!inner(
             *,
-            products(name, price, description, image_url, category)
+            products!inner(name, price, description, image_url, category)
           )
         )
       `)
@@ -110,29 +110,64 @@ export async function getUserInvoices(userId: string) {
   try {
     const supabase = createServerSupabaseClient()
 
+    // First, get all orders for the user
+    const { data: orders, error: ordersError } = await supabase.from("orders").select("id").eq("user_id", userId)
+
+    if (ordersError) {
+      throw new Error(`Error fetching orders: ${ordersError.message}`)
+    }
+
+    if (!orders || orders.length === 0) {
+      return []
+    }
+
+    // Then get invoices for those orders
+    const orderIds = orders.map((order) => order.id)
+
     const { data, error } = await supabase
       .from("invoices")
       .select(`
         *,
-        orders(
+        orders!inner(
           id,
           status,
           created_at,
-          total_amount,
-          bookings(
-            product_id,
-            products(name)
-          )
+          total_amount
         )
       `)
-      .eq("orders.user_id", userId)
+      .in("order_id", orderIds)
       .order("created_at", { ascending: false })
 
     if (error) {
       throw new Error(`Error fetching invoices: ${error.message}`)
     }
 
-    return data
+    // For each invoice, get the product name separately
+    const invoicesWithProducts = await Promise.all(
+      data.map(async (invoice) => {
+        const { data: booking } = await supabase
+          .from("bookings")
+          .select("product_id")
+          .eq("id", invoice.orders.booking_id)
+          .single()
+
+        if (booking) {
+          const { data: product } = await supabase.from("products").select("name").eq("id", booking.product_id).single()
+
+          return {
+            ...invoice,
+            productName: product ? product.name : "Unknown Product",
+          }
+        }
+
+        return {
+          ...invoice,
+          productName: "Unknown Product",
+        }
+      }),
+    )
+
+    return invoicesWithProducts
   } catch (error: any) {
     console.error("Error in getUserInvoices:", error)
     throw error

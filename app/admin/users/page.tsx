@@ -6,6 +6,9 @@ import { getAllUsers } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
+// Force dynamic rendering for this page
+export const dynamic = "force-dynamic"
+
 export default async function AdminUsersPage() {
   try {
     // Ensure user is admin

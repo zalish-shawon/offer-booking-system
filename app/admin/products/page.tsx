@@ -6,6 +6,9 @@ import { AdminProductsTable } from "@/components/admin/products-table"
 import { getAdminProducts } from "@/lib/admin"
 import { Button } from "@/components/ui/button"
 
+// Force dynamic rendering for this page
+export const dynamic = "force-dynamic"
+
 export default async function AdminProductsPage() {
   try {
     // Ensure user is admin

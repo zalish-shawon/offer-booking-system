@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/auth"
 import { AdminBookingsTable } from "@/components/admin/bookings-table"
 import { getAdminBookings } from "@/lib/admin"
 
+// Force dynamic rendering for this page
+export const dynamic = "force-dynamic"
+
 export default async function AdminBookingsPage() {
   try {
     // Ensure user is admin
