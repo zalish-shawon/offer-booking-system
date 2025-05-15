@@ -118,9 +118,7 @@ export function ProductCard({ product }: ProductCardProps) {
               <span className="text-xl font-bold">${product.price.toFixed(2)}</span>
             )}
           </div>
-          <div className="text-sm text-muted-foreground">
-            {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
-          </div>
+          {/* Removed stock display */}
         </div>
       </CardContent>
       <CardFooter className="p-4 pt-0">

@@ -4,10 +4,77 @@ import { revalidatePath } from "next/cache"
 import { createServerSupabaseClient } from "./supabase"
 import { getSystemSettings } from "./admin-actions"
 
-// Book a product
-export async function bookProduct(productId: string, userId?: string) {
+// Add this function to check booking limits
+export async function checkBookingLimit(productId: string, userId: string) {
   try {
     const supabase = createServerSupabaseClient()
+
+    // Get the product to check max booking per user
+    const { data: product, error: productError } = await supabase
+      .from("products")
+      .select("max_booking_per_user")
+      .eq("id", productId)
+      .single()
+
+    if (productError) {
+      throw new Error(`Error fetching product: ${productError.message}`)
+    }
+
+    const maxBookingPerUser = product.max_booking_per_user || 1
+
+    // Count existing bookings by this user for this product
+    const { data: bookings, error: bookingsError } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("product_id", productId)
+      .eq("user_id", userId)
+      .not("status", "eq", "cancelled")
+
+    if (bookingsError) {
+      throw new Error(`Error checking existing bookings: ${bookingsError.message}`)
+    }
+
+    // Check if user has reached their booking limit
+    if (bookings && bookings.length >= maxBookingPerUser) {
+      return {
+        canBook: false,
+        message: `You have reached the maximum limit of ${maxBookingPerUser} bookings for this product.`,
+        currentBookings: bookings.length,
+        maxBookings: maxBookingPerUser,
+      }
+    }
+
+    return {
+      canBook: true,
+      currentBookings: bookings ? bookings.length : 0,
+      maxBookings: maxBookingPerUser,
+    }
+  } catch (error: any) {
+    console.error("Error in checkBookingLimit:", error)
+    throw error
+  }
+}
+
+// Update the bookProduct function to check booking limits
+export async function bookProduct(productId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get current user
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) {
+      throw new Error("You must be logged in to book a product")
+    }
+
+    const userId = session.user.id
+
+    // Check booking limit
+    const bookingLimitCheck = await checkBookingLimit(productId, userId)
+    if (!bookingLimitCheck.canBook) {
+      throw new Error(bookingLimitCheck.message)
+    }
 
     // Get system settings
     const settings = await getSystemSettings()
@@ -96,7 +163,7 @@ export async function bookProduct(productId: string, userId?: string) {
     revalidatePath(`/products/${productId}`)
 
     return { success: true, bookingId: booking.id }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in bookProduct:", error)
     throw error
   }
@@ -327,10 +394,11 @@ export async function extendBookingExpiration(bookingId: string, additionalHours
 
 // Complete payment for a booking
 export async function completePayment(
-  bookingId: string,
+  productId: string,
   paymentDetails: {
-    paymentMethod: string
+    paymentMethod: "online" | "bank_transfer"
     shippingAddress: string
+    paymentSlipUrl?: string | null
   },
 ) {
   try {
@@ -340,7 +408,10 @@ export async function completePayment(
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .select("*, products(*)")
-      .eq("id", bookingId)
+      .eq("product_id", productId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
       .single()
 
     if (bookingError) {
@@ -359,8 +430,15 @@ export async function completePayment(
       throw new Error("Booking has not been approved by admin yet")
     }
 
+    // Determine order status and payment approval status based on payment method
+    const orderStatus = paymentDetails.paymentMethod === "online" ? "paid" : "pending"
+    const paymentApprovalStatus = paymentDetails.paymentMethod === "online" ? "approved" : "pending"
+
     // Update booking status
-    const { error: updateBookingError } = await supabase.from("bookings").update({ status: "paid" }).eq("id", bookingId)
+    const { error: updateBookingError } = await supabase
+      .from("bookings")
+      .update({ status: orderStatus === "paid" ? "paid" : "pending" })
+      .eq("id", booking.id)
 
     if (updateBookingError) {
       console.error("Error updating booking status:", updateBookingError)
@@ -371,11 +449,13 @@ export async function completePayment(
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
-        booking_id: bookingId,
+        booking_id: booking.id,
         user_id: booking.user_id,
         total_amount: booking.products.discounted_price || booking.products.price,
-        status: "paid",
+        status: orderStatus,
         payment_method: paymentDetails.paymentMethod,
+        payment_slip_url: paymentDetails.paymentSlipUrl || null,
+        payment_approval_status: paymentApprovalStatus,
         shipping_address: paymentDetails.shippingAddress,
       })
       .select()
@@ -392,5 +472,57 @@ export async function completePayment(
   } catch (error) {
     console.error("Error in completePayment:", error)
     throw error
+  }
+}
+
+// Get a booked product by ID
+export async function getBookedProduct(id: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // First, get the product
+    const { data: product, error: productError } = await supabase.from("products").select("*").eq("id", id).single()
+
+    if (productError) {
+      console.error("Error fetching booked product:", productError)
+      return null
+    }
+
+    // Then, get the booking information
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .select("*")
+      .eq("product_id", id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (bookingError && bookingError.code !== "PGRST116") {
+      // PGRST116 is "no rows returned" error
+      console.error("Error fetching booking:", bookingError)
+    }
+
+    // If there's no booking, return null
+    if (!booking) {
+      return null
+    }
+
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: Number(product.price),
+      discountedPrice: product.discounted_price ? Number(product.discounted_price) : undefined,
+      image: product.image_url,
+      stock: product.stock,
+      status: product.status,
+      isBooked: true,
+      bookedAt: booking.booked_at,
+      expiresAt: booking.expires_at,
+    }
+  } catch (error) {
+    console.error("Error in getBookedProduct:", error)
+    return null
   }
 }

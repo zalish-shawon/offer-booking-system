@@ -351,8 +351,6 @@ export async function deleteProduct(productId: string) {
   }
 }
 
-// Add these functions after the deleteProduct function
-
 // Get product by ID
 export async function getProductById(productId: string) {
   try {
@@ -380,6 +378,7 @@ export async function getProductById(productId: string) {
       stock: data.stock,
       status: data.status,
       category: data.category || "mobile",
+      maxBookingPerUser: data.max_booking_per_user || 1,
     }
   } catch (error: any) {
     console.error("Error in getProductById:", error)
@@ -398,6 +397,7 @@ export async function updateProduct(
     image: string
     discountedPrice?: number
     category?: string
+    maxBookingPerUser?: number
   },
 ) {
   try {
@@ -411,7 +411,7 @@ export async function updateProduct(
       status = "low-stock"
     }
 
-    // Update the product with category
+    // Update the product with category and max booking per user
     const { error } = await supabase
       .from("products")
       .update({
@@ -423,6 +423,7 @@ export async function updateProduct(
         stock: productData.stock,
         status,
         category: productData.category || "mobile",
+        max_booking_per_user: productData.maxBookingPerUser || 1,
         updated_at: new Date().toISOString(),
       })
       .eq("id", productId)
@@ -439,6 +440,390 @@ export async function updateProduct(
     return { success: true }
   } catch (error: any) {
     console.error("Error in updateProduct:", error)
+    throw error
+  }
+}
+
+// Payment management functions
+export async function getPendingPayments() {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get orders with pending payment approval and bank transfer payment method
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*, bookings(product_id, user_id)")
+      .eq("payment_method", "bank_transfer")
+      .eq("payment_approval_status", "pending")
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      throw new Error(`Error fetching pending payments: ${error.message}`)
+    }
+
+    // Enhance the data with product and customer information
+    const enhancedData = await Promise.all(
+      data.map(async (order) => {
+        let customerName = "Guest"
+        let productName = "Unknown Product"
+
+        // Get customer info if user_id exists
+        if (order.user_id) {
+          const { data: user } = await supabase.from("profiles").select("full_name").eq("id", order.user_id).single()
+          if (user) {
+            customerName = user.full_name || "Unknown"
+          }
+        }
+
+        // Get product info if booking exists
+        if (order.bookings && order.bookings.product_id) {
+          const { data: product } = await supabase
+            .from("products")
+            .select("name")
+            .eq("id", order.bookings.product_id)
+            .single()
+          if (product) {
+            productName = product.name
+          }
+        }
+
+        return {
+          ...order,
+          customer_name: customerName,
+          product_name: productName,
+        }
+      }),
+    )
+
+    return enhancedData
+  } catch (error: any) {
+    console.error("Error in getPendingPayments:", error)
+    throw error
+  }
+}
+
+export async function approvePayment(orderId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get the current user (admin)
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      throw new Error("You must be logged in to approve payments")
+    }
+
+    const adminId = session.user.id
+
+    // Get the order
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select("booking_id")
+      .eq("id", orderId)
+      .single()
+
+    if (orderError) {
+      throw new Error(`Error fetching order: ${orderError.message}`)
+    }
+
+    // Update order status
+    const { error: updateOrderError } = await supabase
+      .from("orders")
+      .update({
+        status: "paid",
+        payment_approval_status: "approved",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+
+    if (updateOrderError) {
+      throw new Error(`Error updating order: ${updateOrderError.message}`)
+    }
+
+    // Update booking status if booking exists
+    if (order.booking_id) {
+      const { error: updateBookingError } = await supabase
+        .from("bookings")
+        .update({
+          status: "paid",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.booking_id)
+
+      if (updateBookingError) {
+        throw new Error(`Error updating booking: ${updateBookingError.message}`)
+      }
+    }
+
+    revalidatePath("/admin/payments")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error in approvePayment:", error)
+    throw error
+  }
+}
+
+export async function rejectPayment(orderId: string, reason?: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get the current user (admin)
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      throw new Error("You must be logged in to reject payments")
+    }
+
+    const adminId = session.user.id
+
+    // Get the order
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select("booking_id")
+      .eq("id", orderId)
+      .single()
+
+    if (orderError) {
+      throw new Error(`Error fetching order: ${orderError.message}`)
+    }
+
+    // Update order status
+    const { error: updateOrderError } = await supabase
+      .from("orders")
+      .update({
+        status: "cancelled",
+        payment_approval_status: "rejected",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+
+    if (updateOrderError) {
+      throw new Error(`Error updating order: ${updateOrderError.message}`)
+    }
+
+    // If booking exists, update it and return product to inventory
+    if (order.booking_id) {
+      // Get the booking
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .select("product_id")
+        .eq("id", order.booking_id)
+        .single()
+
+      if (bookingError) {
+        throw new Error(`Error fetching booking: ${bookingError.message}`)
+      }
+
+      // Update booking status
+      const { error: updateBookingError } = await supabase
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          admin_notes: reason || "Payment rejected",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.booking_id)
+
+      if (updateBookingError) {
+        throw new Error(`Error updating booking: ${updateBookingError.message}`)
+      }
+
+      // Get the product
+      const { data: product, error: productError } = await supabase
+        .from("products")
+        .select("stock")
+        .eq("id", booking.product_id)
+        .single()
+
+      if (productError) {
+        throw new Error(`Error fetching product: ${productError.message}`)
+      }
+
+      // Update product status and stock
+      const newStock = product.stock + 1
+      const newStatus = newStock > 5 ? "in-stock" : newStock > 0 ? "low-stock" : "out-of-stock"
+
+      const { error: updateProductError } = await supabase
+        .from("products")
+        .update({
+          status: newStatus,
+          stock: newStock,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", booking.product_id)
+
+      if (updateProductError) {
+        throw new Error(`Error updating product: ${updateProductError.message}`)
+      }
+    }
+
+    revalidatePath("/admin/payments")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error in rejectPayment:", error)
+    throw error
+  }
+}
+
+// Generate payment methods report
+export async function generatePaymentMethodsReport(startDate?: string, endDate?: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Set default date range if not provided
+    const end = endDate ? new Date(endDate) : new Date()
+    const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    // Query orders within date range
+    const { data, error } = await supabase
+      .from("orders")
+      .select("payment_method, created_at")
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString())
+
+    if (error) {
+      throw new Error(`Error fetching orders: ${error.message}`)
+    }
+
+    // Group by payment method
+    const paymentMethods: Record<string, number> = {}
+    data.forEach((order) => {
+      const method = order.payment_method
+      paymentMethods[method] = (paymentMethods[method] || 0) + 1
+    })
+
+    // Format for chart
+    const chartData = Object.entries(paymentMethods).map(([name, value]) => ({
+      name: name.replace("_", " "),
+      value,
+    }))
+
+    // Cache the report
+    await supabase.from("report_cache").insert({
+      report_type: "payment_methods",
+      report_data: chartData,
+      date_range_start: start.toISOString(),
+      date_range_end: end.toISOString(),
+    })
+
+    return chartData
+  } catch (error: any) {
+    console.error("Error in generatePaymentMethodsReport:", error)
+    throw error
+  }
+}
+
+// Generate approval rates report
+export async function generateApprovalRatesReport(startDate?: string, endDate?: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Set default date range if not provided
+    const end = endDate ? new Date(endDate) : new Date()
+    const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    // Query orders within date range
+    const { data, error } = await supabase
+      .from("orders")
+      .select("payment_approval_status, created_at")
+      .eq("payment_method", "bank_transfer")
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString())
+
+    if (error) {
+      throw new Error(`Error fetching orders: ${error.message}`)
+    }
+
+    // Group by approval status
+    const approvalRates: Record<string, number> = {}
+    data.forEach((order) => {
+      const status = order.payment_approval_status
+      approvalRates[status] = (approvalRates[status] || 0) + 1
+    })
+
+    // Format for chart
+    const chartData = Object.entries(approvalRates).map(([name, value]) => ({
+      name,
+      value,
+    }))
+
+    // Cache the report
+    await supabase.from("report_cache").insert({
+      report_type: "approval_rates",
+      report_data: chartData,
+      date_range_start: start.toISOString(),
+      date_range_end: end.toISOString(),
+    })
+
+    return chartData
+  } catch (error: any) {
+    console.error("Error in generateApprovalRatesReport:", error)
+    throw error
+  }
+}
+
+// Generate sales over time report
+export async function generateSalesReport(startDate?: string, endDate?: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Set default date range if not provided
+    const end = endDate ? new Date(endDate) : new Date()
+    const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    // Query orders within date range
+    const { data, error } = await supabase
+      .from("orders")
+      .select("created_at, total_amount, status")
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString())
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      throw new Error(`Error fetching orders: ${error.message}`)
+    }
+
+    // Group by day
+    const dailyData: Record<string, { date: string; total: number }> = {}
+
+    // Initialize with all days in the range
+    const dayCount = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+    for (let i = 0; i < dayCount; i++) {
+      const date = new Date(start.getTime() + i * 24 * 60 * 60 * 1000)
+      const dateStr = date.toISOString().split("T")[0]
+      dailyData[dateStr] = { date: dateStr, total: 0 }
+    }
+
+    // Sum order amounts by day
+    data.forEach((order) => {
+      if (order.status === "paid" || order.status === "shipped" || order.status === "delivered") {
+        const date = new Date(order.created_at)
+        const dateStr = date.toISOString().split("T")[0]
+
+        if (dailyData[dateStr]) {
+          dailyData[dateStr].total += Number(order.total_amount)
+        }
+      }
+    })
+
+    // Convert to array and sort by date
+    const chartData = Object.values(dailyData).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    // Cache the report
+    await supabase.from("report_cache").insert({
+      report_type: "sales",
+      report_data: chartData,
+      date_range_start: start.toISOString(),
+      date_range_end: end.toISOString(),
+    })
+
+    return chartData
+  } catch (error: any) {
+    console.error("Error in generateSalesReport:", error)
     throw error
   }
 }

@@ -30,13 +30,18 @@ export type Booking = {
   updated_at: string
 }
 
+export type PaymentMethod = "online" | "bank_transfer"
+
 export type Order = {
   id: string
   booking_id: string | null
   user_id: string | null
   total_amount: number
-  status: "pending" | "paid" | "shipped" | "delivered" | "cancelled"
-  payment_method: string | null
+  status: "pending" | "awaiting_approval" | "paid" | "shipped" | "delivered" | "cancelled"
+  payment_method: PaymentMethod | null
+  payment_slip_url: string | null
+  payment_approved_at: string | null
+  payment_approved_by: string | null
   shipping_address: string | null
   created_at: string
   updated_at: string

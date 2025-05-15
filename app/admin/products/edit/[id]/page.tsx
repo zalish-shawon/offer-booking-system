@@ -38,6 +38,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     stock: 0,
     category: "",
     image: "",
+    maxBookingPerUser: 1,
   })
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
           stock: data.stock,
           category: data.category || "Mobile",
           image: data.image || "",
+          maxBookingPerUser: data.maxBookingPerUser || 1,
         })
       } catch (error: any) {
         toast({
@@ -80,7 +82,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "price" || name === "discountedPrice" || name === "stock" ? Number.parseFloat(value) : value,
+      [name]:
+        name === "price" || name === "discountedPrice" || name === "stock" || name === "maxBookingPerUser"
+          ? Number.parseFloat(value)
+          : value,
     }))
   }
 
@@ -127,6 +132,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         stock: formData.stock,
         category: formData.category,
         image: formData.image,
+        maxBookingPerUser: formData.maxBookingPerUser,
       })
 
       toast({
@@ -263,6 +269,20 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                   onChange={handleInputChange}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxBookingPerUser">Max Booking Per User</Label>
+                <Input
+                  id="maxBookingPerUser"
+                  name="maxBookingPerUser"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={formData.maxBookingPerUser}
+                  onChange={handleInputChange}
+                  required
+                />
+                <p className="text-sm text-muted-foreground">Maximum number of this product a single user can book</p>
               </div>
             </CardContent>
           </Card>
