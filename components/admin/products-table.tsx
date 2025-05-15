@@ -149,7 +149,7 @@ export function AdminProductsTable({ products, showPagination = false }: AdminPr
                       src={product.image || "/placeholder.svg?height=40&width=40"}
                       alt={product.name}
                       fill
-                      className="object-cover"
+                      className=""
                     />
                   </div>
                 </TableCell>
