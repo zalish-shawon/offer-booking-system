@@ -1,12 +1,16 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Download, ExternalLink } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
+
+// Force dynamic rendering for this page
+export const dynamic = "force-dynamic"
 
 export default async function OrderDetailsPage({ params }: { params: { id: string } }) {
   const supabase = createServerSupabaseClient()
@@ -35,30 +39,19 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
     notFound()
   }
 
-  const product = order.bookings?.products
-  const paymentStatusColor =
-    order.payment_approval_status === "approved"
-      ? "text-green-500"
-      : order.payment_approval_status === "rejected"
-        ? "text-red-500"
-        : "text-yellow-500"
+  const product = order.bookings?.products || null
+  const booking = order.bookings || null
 
   return (
     <div className="flex-1 space-y-4">
-      <DashboardHeader heading="Order Details" text={`Order ID: ${params.id.substring(0, 8)}...`}>
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard/orders">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Orders
-            </Button>
-          </Link>
-          <Link href={`/dashboard/invoices/${params.id}`}>
-            <Button size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Download Invoice
-            </Button>
-          </Link>
+      <DashboardHeader heading="Order Details" text={`Order #${order.id.substring(0, 8)}`}>
+        <div className="flex space-x-2">
+          <Button asChild variant="outline">
+            <Link href="/dashboard/orders">Back to Orders</Link>
+          </Button>
+          <Button asChild>
+            <Link href={`/dashboard/invoices/${order.id}`}>View Invoice</Link>
+          </Button>
         </div>
       </DashboardHeader>
 
@@ -71,11 +64,15 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Order Date</p>
+                <p className="text-sm font-medium text-muted-foreground">Order ID</p>
+                <p>{order.id.substring(0, 8)}...</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Date</p>
                 <p>{new Date(order.created_at).toLocaleDateString()}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Order Status</p>
+                <p className="text-sm font-medium text-muted-foreground">Status</p>
                 <Badge
                   variant={
                     order.status === "paid" || order.status === "shipped" || order.status === "delivered"
@@ -90,11 +87,25 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Payment Method</p>
-                <p className="capitalize">{order.payment_method.replace("_", " ")}</p>
+                <p className="capitalize">{order.payment_method?.replace("_", " ") || "N/A"}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Payment Status</p>
-                <p className={paymentStatusColor}>{order.payment_approval_status}</p>
+                <Badge
+                  variant={
+                    order.payment_approval_status === "approved"
+                      ? "default"
+                      : order.payment_approval_status === "pending"
+                        ? "secondary"
+                        : "destructive"
+                  }
+                >
+                  {order.payment_approval_status || "N/A"}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Amount</p>
+                <p className="font-semibold">{formatCurrency(order.total_amount)}</p>
               </div>
             </div>
 
@@ -102,25 +113,8 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
 
             <div>
               <p className="text-sm font-medium text-muted-foreground">Shipping Address</p>
-              <p className="whitespace-pre-line">{order.shipping_address || "Not provided"}</p>
+              <p className="whitespace-pre-line">{order.shipping_address || "No shipping address provided"}</p>
             </div>
-
-            {order.payment_method === "bank_transfer" && order.payment_slip_url && (
-              <>
-                <Separator />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Payment Slip</p>
-                  <div className="mt-2">
-                    <Link href={order.payment_slip_url} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="sm">
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        View Payment Slip
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </>
-            )}
           </CardContent>
         </Card>
 
@@ -129,52 +123,65 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
             <CardTitle>Product Information</CardTitle>
             <CardDescription>Details about the product you ordered</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             {product ? (
-              <>
-                <div className="flex items-center gap-4">
-                  <div className="h-20 w-20 overflow-hidden rounded-md">
-                    <img
-                      src={product.image_url || "/placeholder.svg?height=80&width=80"}
-                      alt={product.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
+              <div className="flex flex-col space-y-4">
+                <div className="relative aspect-square w-full max-w-[200px] mx-auto">
+                  <Image
+                    src={product.image_url || "/placeholder.svg?height=200&width=200"}
+                    alt={product.name}
+                    fill
+                    className="object-cover rounded-md"
+                  />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">{product.name}</h3>
+                  <p className="text-sm text-muted-foreground">{product.description}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <h3 className="font-medium">{product.name}</h3>
-                    <p className="text-sm text-muted-foreground">{product.category}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Price</p>
+                    <p>{formatCurrency(product.price)}</p>
                   </div>
+                  {product.discounted_price && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Discounted Price</p>
+                      <p>{formatCurrency(product.discounted_price)}</p>
+                    </div>
+                  )}
                 </div>
-
-                <Separator />
-
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Description</p>
-                  <p className="text-sm">{product.description}</p>
-                </div>
-              </>
+              </div>
             ) : (
               <p>Product information not available</p>
             )}
-
-            <Separator />
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <p>Subtotal</p>
-                <p>${Number(order.total_amount).toFixed(2)}</p>
-              </div>
-              <div className="flex justify-between">
-                <p>Tax</p>
-                <p>$0.00</p>
-              </div>
-              <Separator />
-              <div className="flex justify-between font-medium">
-                <p>Total</p>
-                <p>${Number(order.total_amount).toFixed(2)}</p>
-              </div>
-            </div>
           </CardContent>
+          <CardFooter>
+            {booking && (
+              <div className="w-full">
+                <p className="text-sm font-medium text-muted-foreground">Booking Information</p>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Booked At</p>
+                    <p>{new Date(booking.created_at).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Booking Status</p>
+                    <Badge
+                      variant={
+                        booking.status === "paid"
+                          ? "default"
+                          : booking.status === "pending"
+                            ? "secondary"
+                            : "destructive"
+                      }
+                    >
+                      {booking.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardFooter>
         </Card>
       </div>
     </div>

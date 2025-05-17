@@ -6,6 +6,9 @@ import { RecentOrders } from "@/components/dashboard/recent-orders"
 import { Overview } from "@/components/dashboard/overview"
 import { ShoppingBag, Clock, CheckCircle, CreditCard } from "lucide-react"
 
+// Force dynamic rendering for this page
+export const dynamic = "force-dynamic"
+
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient()
 
@@ -115,7 +118,7 @@ export default async function DashboardPage() {
               <CardDescription>View and manage all your orders.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Order list will be displayed here.</p>
+              <p>Please visit the Orders page for a detailed view of all your orders.</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -127,7 +130,7 @@ export default async function DashboardPage() {
               <CardDescription>View your payment history and status.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Payment history will be displayed here.</p>
+              <p>Please visit the Payments page for a detailed view of your payment history.</p>
             </CardContent>
           </Card>
         </TabsContent>

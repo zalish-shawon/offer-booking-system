@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { Loader2 } from "lucide-react"
+import { Loader2, Clock } from "lucide-react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 import { Button } from "@/components/ui/button"
@@ -170,13 +170,18 @@ export default function BookingConfirmationPage({ params }: { params: { id: stri
   }
 
   return (
-    <div className="container max-w-[65%] mx-auto py-10">
+    <div className="container max-w-4xl py-10">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Complete Your Purchase</h1>
-        <p className="text-muted-foreground">
-          Your item is reserved for{" "}
-          <BookingTimer expiresAt={product.expiresAt} onExpire={() => router.push("/products")} />
-        </p>
+        <div className="flex items-center gap-2 mt-2 text-muted-foreground">
+          <Clock className="h-4 w-4" />
+          <p>
+            Your item is reserved for{" "}
+            <span className="font-medium">
+              <BookingTimer expiresAt={product.expiresAt} onExpire={() => router.push("/products")} />
+            </span>
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-5">

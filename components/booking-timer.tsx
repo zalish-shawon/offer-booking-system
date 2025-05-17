@@ -1,14 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 
 interface BookingTimerProps {
-  bookingTime: string
-  expiryTime?: string
-  durationHours?: number
+  expiresAt: string
+  onExpire?: () => void
 }
 
-export function BookingTimer({ bookingTime, expiryTime, durationHours = 48 }: BookingTimerProps) {
+export function BookingTimer({ expiresAt, onExpire }: BookingTimerProps) {
   const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number }>({
     hours: 0,
     minutes: 0,
@@ -18,23 +17,19 @@ export function BookingTimer({ bookingTime, expiryTime, durationHours = 48 }: Bo
 
   useEffect(() => {
     const calculateTimeLeft = () => {
-      let expiryDate: Date
-
-      if (expiryTime) {
-        expiryDate = new Date(expiryTime)
-      } else {
-        const bookingDate = new Date(bookingTime)
-        expiryDate = new Date(bookingDate.getTime() + durationHours * 60 * 60 * 1000)
-      }
-
-      const now = new Date()
-      const difference = expiryDate.getTime() - now.getTime()
+      const expiryTime = new Date(expiresAt).getTime()
+      const now = new Date().getTime()
+      const difference = expiryTime - now
 
       if (difference <= 0) {
         setIsExpired(true)
+        if (onExpire) {
+          onExpire()
+        }
         return { hours: 0, minutes: 0, seconds: 0 }
       }
 
+      // Calculate time units
       const hours = Math.floor(difference / (1000 * 60 * 60))
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
       const seconds = Math.floor((difference % (1000 * 60)) / 1000)
@@ -49,24 +44,20 @@ export function BookingTimer({ bookingTime, expiryTime, durationHours = 48 }: Bo
     const timer = setInterval(() => {
       const newTimeLeft = calculateTimeLeft()
       setTimeLeft(newTimeLeft)
-
-      if (newTimeLeft.hours === 0 && newTimeLeft.minutes === 0 && newTimeLeft.seconds === 0) {
-        clearInterval(timer)
-        setIsExpired(true)
-      }
     }, 1000)
 
+    // Cleanup
     return () => clearInterval(timer)
-  }, [bookingTime, expiryTime, durationHours])
+  }, [expiresAt, onExpire])
 
   if (isExpired) {
-    return <span className="font-bold text-red-500">Expired</span>
+    return <span className="font-semibold text-red-500">Expired</span>
   }
 
   return (
-    <span className="font-mono font-bold">
-      {String(timeLeft.hours).padStart(2, "0")}:{String(timeLeft.minutes).padStart(2, "0")}:
-      {String(timeLeft.seconds).padStart(2, "0")}
+    <span className="font-semibold">
+      {timeLeft.hours.toString().padStart(2, "0")}:{timeLeft.minutes.toString().padStart(2, "0")}:
+      {timeLeft.seconds.toString().padStart(2, "0")}
     </span>
   )
 }

@@ -4,43 +4,43 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { User, ShoppingBag, CreditCard, Clock, FileText, Settings } from "lucide-react"
+import { LayoutDashboard, ShoppingBag, FileText, User, LogOut, CreditCard, Settings, Bell } from "lucide-react"
 
 const navItems = [
   {
-    title: "Overview",
+    title: "Dashboard",
     href: "/dashboard",
-    icon: <ShoppingBag className="mr-2 h-4 w-4" />,
+    icon: LayoutDashboard,
   },
   {
     title: "Orders",
     href: "/dashboard/orders",
-    icon: <ShoppingBag className="mr-2 h-4 w-4" />,
-  },
-  {
-    title: "Payments",
-    href: "/dashboard/payments",
-    icon: <CreditCard className="mr-2 h-4 w-4" />,
-  },
-  {
-    title: "Purchase History",
-    href: "/dashboard/history",
-    icon: <Clock className="mr-2 h-4 w-4" />,
+    icon: ShoppingBag,
   },
   {
     title: "Invoices",
     href: "/dashboard/invoices",
-    icon: <FileText className="mr-2 h-4 w-4" />,
+    icon: FileText,
+  },
+  {
+    title: "Payments",
+    href: "/dashboard/payments",
+    icon: CreditCard,
+  },
+  {
+    title: "Notifications",
+    href: "/dashboard/notifications",
+    icon: Bell,
   },
   {
     title: "Profile",
     href: "/dashboard/profile",
-    icon: <User className="mr-2 h-4 w-4" />,
+    icon: User,
   },
   {
     title: "Settings",
     href: "/dashboard/settings",
-    icon: <Settings className="mr-2 h-4 w-4" />,
+    icon: Settings,
   },
 ]
 
@@ -58,11 +58,17 @@ export function DashboardNav() {
               pathname === item.href ? "bg-primary text-primary-foreground" : "text-muted-foreground",
             )}
           >
-            {item.icon}
+            <item.icon className="mr-2 h-4 w-4" />
             {item.title}
           </Button>
         </Link>
       ))}
+      <Link href="/auth/logout">
+        <Button variant="ghost" className="w-full justify-start text-muted-foreground">
+          <LogOut className="mr-2 h-4 w-4" />
+          Logout
+        </Button>
+      </Link>
     </nav>
   )
 }
